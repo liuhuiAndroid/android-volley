@@ -76,6 +76,7 @@ public class StringRequest extends Request<String> {
         } catch (UnsupportedEncodingException e) {
             parsed = new String(response.data);
         }
+        // 调用了HttpHeaderParser的parseCacheHeaders,进去看：
         return Response.success(parsed, HttpHeaderParser.parseCacheHeaders(response));
     }
 }

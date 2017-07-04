@@ -22,6 +22,9 @@ import java.util.concurrent.BlockingQueue;
 
 /**
  * Provides a thread for performing cache triage on a queue of requests.
+ * 一个线程，用于调度处理走缓存的请求。启动后会不断从缓存请求队列中取请求处理，队列为空则等待，
+ * 请求处理结束则将结果传递给ResponseDelivery去执行后续处理。
+ * 当结果未缓存过、缓存失效或缓存需要刷新的情况下，该请求都需要重新进入NetworkDispatcher去调度处理。
  *
  * Requests added to the specified cache queue are resolved from cache.
  * Any deliverable response is posted back to the caller via a
@@ -81,9 +84,12 @@ public class CacheDispatcher extends Thread {
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
 
         // Make a blocking call to initialize the cache.
+        // mCache就是进行缓存的核心类，请求都是通过该类缓存在指定的地方，这里是对其进行初始化工作。
+        // 这里默认为DiskBasedCache，原理是将数据以流的形式写入到磁盘文件。
         mCache.initialize();
 
         Request<?> request;
+        // while(true)循环，说明缓存线程始终是在运行的
         while (true) {
             // release previous request object to avoid leaking request object when mQueue is drained.
             request = null;
@@ -107,8 +113,13 @@ public class CacheDispatcher extends Thread {
                 }
 
                 // Attempt to retrieve this item from cache.
+                // 通过CacheKey判断下是否请求已经在缓存中，如果在的话则从缓存当中取出响应结果
+                // 请求的缓存都是以Cache接口的内部类Entry缓存起来的
+                // Entry是一个很简单的实体类，存储的是和请求判断是否过期相关的属性，
+                // 那这里的缓存过程是在哪里进行的呢？这很容易猜到，在网络请求成功后。
                 Cache.Entry entry = mCache.get(request.getCacheKey());
                 if (entry == null) {
+                    // 如果为空的话则把这条请求加入到网络请求队列中
                     request.addMarker("cache-miss");
                     // Cache miss; send off to the network dispatcher.
                     mNetworkQueue.put(request);
@@ -116,19 +127,28 @@ public class CacheDispatcher extends Thread {
                 }
 
                 // If it is completely expired, just send it to the network.
+                // 如果不为空的话再判断该缓存是否已过期
+                // （根据前面在HttpHeaderParser解析的响应头算出来的属性ttl与当前时间的比较）
                 if (entry.isExpired()) {
+                    // 如果已经过期了则同样把这条请求加入到网络请求队列中
                     request.addMarker("cache-hit-expired");
+                    // 将该Entry传递给request，然后将请求重新添加到请求队列中，重新请求。
                     request.setCacheEntry(entry);
                     mNetworkQueue.put(request);
                     continue;
                 }
 
                 // We have a cache hit; parse its data for delivery back to the request.
+                // 认为不需要重发网络请求，直接使用缓存中的数据即可
                 request.addMarker("cache-hit");
+                // 调用Request的parseNetworkResponse()方法来对数据进行解析，再往后就是将解析出来的数据进行回调了
                 Response<?> response = request.parseNetworkResponse(
                         new NetworkResponse(entry.data, entry.responseHeaders));
                 request.addMarker("cache-hit-parsed");
 
+                // 验证新鲜度entry.refreshNeeded()（softTtl与当前时间的比较），
+                // 不用验证新鲜度则直接将缓存的数据传递到客户端线程，需要刷新则还是将将该Entry传递给request，
+                // 然后请求添加到请求队列去验证响应数据新鲜度。
                 if (!entry.refreshNeeded()) {
                     // Completely unexpired cache hit. Just deliver the response.
                     mDelivery.postResponse(request, response);

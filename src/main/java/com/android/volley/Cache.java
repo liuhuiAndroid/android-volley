@@ -21,6 +21,8 @@ import java.util.Map;
 
 /**
  * An interface for a cache keyed by a String with a byte array as data.
+ * 缓存请求结果，Volley 默认使用的是基于 sdcard 的DiskBasedCache。
+ * NetworkDispatcher得到请求结果后判断是否需要存储在 Cache，CacheDispatcher会从 Cache 中取缓存结果。
  */
 public interface Cache {
     /**

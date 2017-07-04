@@ -26,6 +26,9 @@ import java.util.concurrent.BlockingQueue;
 
 /**
  * Provides a thread for performing network dispatch from a queue of requests.
+ * 一个线程，用于调度处理走网络的请求。
+ * 启动后会不断从网络请求队列中取请求处理，队列为空则等待，
+ * 请求处理结束则将结果传递给ResponseDelivery去执行后续处理，并判断结果是否要进行缓存。
  *
  * Requests added to the specified queue are processed from the network via a
  * specified {@link Network} interface. Responses are committed to cache, if
@@ -81,14 +84,17 @@ public class NetworkDispatcher extends Thread {
 
     @Override
     public void run() {
+        // 首先会将线程的优先级设置为比普通线程低一点，为的是尽量确保线程不影响UI的体验。
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
         Request<?> request;
+        // while(true)循环，说明网络请求线程也是在不断运行的
         while (true) {
             long startTimeMs = SystemClock.elapsedRealtime();
             // release previous request object to avoid leaking request object when mQueue is drained.
             request = null;
             try {
                 // Take a request from the queue.
+                // 不断从mQueue（就是RequestQueue传进来的优先级阻塞队列）中取出Request
                 request = mQueue.take();
             } catch (InterruptedException e) {
                 // We may have been interrupted because it was time to quit.
@@ -104,6 +110,10 @@ public class NetworkDispatcher extends Thread {
                 // If the request was cancelled already, do not perform the
                 // network request.
                 if (request.isCanceled()) {
+                    // 如果取消则对请求调用finish并重新循环取下一个请求
+                    // finish的处理就是将请求从RequestQueue的mCurrentRequests和将该请求移除
+                    // （这里取消请求，往往运用在和Activity生命周期联动上，
+                    // 在Activity的destroy方法取消掉该Activity的所有请求。主要是防止内存泄漏）
                     request.finish("network-discard-cancelled");
                     continue;
                 }
@@ -111,6 +121,8 @@ public class NetworkDispatcher extends Thread {
                 addTrafficStatsTag(request);
 
                 // Perform the network request.
+                // 会调用Network的performRequest()方法来去发送网络请求，
+                // 而Network是一个接口，这里具体的实现是BasicNetwork，我们来看下它的performRequest()方法
                 NetworkResponse networkResponse = mNetwork.performRequest(request);
                 request.addMarker("network-http-complete");
 
@@ -122,11 +134,16 @@ public class NetworkDispatcher extends Thread {
                 }
 
                 // Parse the response here on the worker thread.
+                // 调用Request的parseNetworkResponse()方法来解析NetworkResponse中的数据，
+                // 以及将数据写入到缓存
+                // 这个方法的实现是交给Request的子类来完成的,自定义Request这个方法就是必须要重写的
+                // 将二级制数转化为对应的所需要的数据形式
                 Response<?> response = request.parseNetworkResponse(networkResponse);
                 request.addMarker("network-parse-complete");
 
                 // Write to cache if applicable.
                 // TODO: Only update cache metadata instead of entire record for 304s.
+                // 如果请求是需要缓存的，就将请求相关数据缓存在磁盘中，mCache默认是DiskBasedCache。
                 if (request.shouldCache() && response.cacheEntry != null) {
                     mCache.put(request.getCacheKey(), response.cacheEntry);
                     request.addMarker("network-cache-written");
@@ -134,6 +151,10 @@ public class NetworkDispatcher extends Thread {
 
                 // Post the response back.
                 request.markDelivered();
+                // 调用ExecutorDelivery的postResponse()方法来回调解析出的数据,将请求结果传递到主线程
+                // 在我们使用Volley的newRequestQueue方法创建一个RequestQueue的时候，
+                // 就会调用到RequestQueue的这个构造方法,创建了一个ExecutorDelivery对象，
+                // 并且传入了Looper为主线程Looper的Handler对象
                 mDelivery.postResponse(request, response);
             } catch (VolleyError volleyError) {
                 volleyError.setNetworkTimeMs(SystemClock.elapsedRealtime() - startTimeMs);

@@ -18,6 +18,7 @@ package com.android.volley;
 
 /**
  * An interface for performing requests.
+ * 调用HttpStack处理请求，并将结果转换为可被ResponseDelivery处理的NetworkResponse。
  */
 public interface Network {
     /**

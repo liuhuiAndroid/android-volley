@@ -46,6 +46,8 @@ import javax.net.ssl.SSLSocketFactory;
 
 /**
  * An {@link HttpStack} based on {@link HttpURLConnection}.
+ * 处理 Http 请求，返回请求结果。
+ * 目前 Volley 中有基于 HttpURLConnection 的HurlStack和 基于 Apache HttpClient 的HttpClientStack。
  */
 public class HurlStack implements HttpStack {
 

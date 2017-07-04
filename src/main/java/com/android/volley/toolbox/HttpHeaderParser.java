@@ -54,19 +54,24 @@ public class HttpHeaderParser {
         String serverEtag = null;
         String headerValue;
 
+        //提取出响应头Date，若存在则保存在serverDate
         headerValue = headers.get("Date");
         if (headerValue != null) {
             serverDate = parseDateAsEpoch(headerValue);
         }
 
+        //提取出响应头Cache-Control
         headerValue = headers.get("Cache-Control");
         if (headerValue != null) {
             hasCacheControl = true;
+            //取出Cache-Control头相应的值
             String[] tokens = headerValue.split(",");
             for (int i = 0; i < tokens.length; i++) {
                 String token = tokens[i].trim();
+                //不取缓存数据或不进行缓存
                 if (token.equals("no-cache") || token.equals("no-store")) {
                     return null;
+                    //最大的有效时间
                 } else if (token.startsWith("max-age=")) {
                     try {
                         maxAge = Long.parseLong(token.substring(8));
@@ -83,31 +88,39 @@ public class HttpHeaderParser {
             }
         }
 
+        //提取出响应头Expires，若存在则保存在serverExpires
         headerValue = headers.get("Expires");
         if (headerValue != null) {
             serverExpires = parseDateAsEpoch(headerValue);
         }
 
+        //提取出响应头Last-Modified，若存在则保存在lastModified
         headerValue = headers.get("Last-Modified");
         if (headerValue != null) {
             lastModified = parseDateAsEpoch(headerValue);
         }
 
+        //提取出响应头ETag，若存在则保存在serverEtag
         serverEtag = headers.get("ETag");
 
         // Cache-Control takes precedence over an Expires header, even if both exist and Expires
         // is more restrictive.
+        //有Cache-Control响应头的情况下
         if (hasCacheControl) {
+            //响应数据缓存最迟有效时间
             softExpire = now + maxAge * 1000;
+            //需要进行新鲜度验证最迟时间
             finalExpire = mustRevalidate
                     ? softExpire
                     : softExpire + staleWhileRevalidate * 1000;
+            //如果没有Cache-Control响应头，则以Expires的时间为过期时间
         } else if (serverDate > 0 && serverExpires >= serverDate) {
             // Default semantic for Expire header in HTTP specification is softExpire.
             softExpire = now + (serverExpires - serverDate);
             finalExpire = softExpire;
         }
 
+        //将响应体和响应头等相关数据保存在Entry中
         Cache.Entry entry = new Cache.Entry();
         entry.data = response.data;
         entry.etag = serverEtag;

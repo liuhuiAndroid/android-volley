@@ -30,6 +30,7 @@ import java.util.Map;
 
 /**
  * Base class for all network requests.
+ * 表示一个请求的抽象类。StringRequest、JsonRequest、ImageRequest 都是它的子类，表示某种类型的请求。
  *
  * @param <T> The type of parsed response this request expects.
  */

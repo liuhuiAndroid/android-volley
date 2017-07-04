@@ -32,6 +32,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A request dispatch queue with a thread pool of dispatchers.
+ * 表示请求队列，里面包含一个CacheDispatcher(用于处理走缓存请求的调度线程)、
+ * NetworkDispatcher数组(用于处理走网络请求的调度线程)，
+ * 一个ResponseDelivery(返回结果分发接口)，
+ * 通过 start() 函数启动时会启动CacheDispatcher和NetworkDispatchers。
  *
  * Calling {@link #add(Request)} will enqueue the given Request for dispatch,
  * resolving from either cache or network on a worker thread, and then delivering
@@ -57,6 +61,8 @@ public class RequestQueue {
      *     <li>get(cacheKey) returns waiting requests for the given cache key. The in flight request
      *          is <em>not</em> contained in that list. Is null if no requests are staged.</li>
      * </ul>
+     * 维护了一个等待请求的集合Map mWaitingRequests
+     * 如果一个请求正在被处理并且可以被缓存，后续的相同 url 的请求，将进入此等待队列，每个key对应一个相同请求的集合。
      */
     private final Map<String, Queue<Request<?>>> mWaitingRequests =
             new HashMap<String, Queue<Request<?>>>();
@@ -65,16 +71,19 @@ public class RequestQueue {
      * The set of all requests currently being processed by this RequestQueue. A Request
      * will be in this set if it is waiting in any queue or currently being processed by
      * any dispatcher.
+     * 正在进行中，尚未完成的请求集合Set mCurrentRequests
      */
     private final Set<Request<?>> mCurrentRequests = new HashSet<Request<?>>();
 
-    /** The cache triage queue. */
+    // 两个基于优先级的 Request 队列
+    /** The cache triage queue. 缓存请求队列 */
     private final PriorityBlockingQueue<Request<?>> mCacheQueue =
         new PriorityBlockingQueue<Request<?>>();
 
-    /** The queue of requests that are actually going out to the network. */
+    /** The queue of requests that are actually going out to the network. 网络请求队列 */
     private final PriorityBlockingQueue<Request<?>> mNetworkQueue =
         new PriorityBlockingQueue<Request<?>>();
+
 
     /** Number of network request dispatcher threads to start. */
     private static final int DEFAULT_NETWORK_THREAD_POOL_SIZE = 4;
@@ -140,11 +149,17 @@ public class RequestQueue {
      */
     public void start() {
         stop();  // Make sure any currently running dispatchers are stopped.
+
+        // NetworkDispatcher和CacheDispatcher 都是Thread的子类，并且注意到它们都持有一个优先级阻塞队列PriorityBlockingQueue
+
         // Create the cache dispatcher and start it.
+        // CacheDispatcher是缓存线程
         mCacheDispatcher = new CacheDispatcher(mCacheQueue, mNetworkQueue, mCache, mDelivery);
         mCacheDispatcher.start();
 
         // Create network dispatchers (and corresponding threads) up to the pool size.
+        // NetworkDispatcher是网络请求线程,
+        // 默认情况下for循环会执行四次,相当于后台有五个线程一直在运行,不断等待网络请求的到来
         for (int i = 0; i < mDispatchers.length; i++) {
             NetworkDispatcher networkDispatcher = new NetworkDispatcher(mNetworkQueue, mNetwork,
                     mCache, mDelivery);
@@ -226,24 +241,35 @@ public class RequestQueue {
      */
     public <T> Request<T> add(Request<T> request) {
         // Tag the request as belonging to this queue and add it to the set of current requests.
+        // 首先将请求与当前的RequestQueue关联起来
         request.setRequestQueue(this);
         synchronized (mCurrentRequests) {
+            // 然后将请求添加到mCurrentRequests，这意味着请求已经正在进行中
             mCurrentRequests.add(request);
         }
 
         // Process requests in the order they are added.
+        // 然后给请求设置序列号，因为我们请求是基于优先级加入请求队列的（即优先级高的排在队列前面，更早被取出）
         request.setSequence(getSequenceNumber());
         request.addMarker("add-to-queue");
 
         // If the request is uncacheable, skip the cache queue and go straight to the network.
+        // 判断当前的请求是否可以缓存
+        // 在默认情况下，每条请求都是可以缓存的，当然我们也可以调用Request的setShouldCache(false)方法来改变这一默认行为。
         if (!request.shouldCache()) {
+            // 不需要缓存则直接将这条请求加入网络请求队列
             mNetworkQueue.add(request);
             return request;
         }
 
         // Insert request into stage if there's already a request with the same cache key in flight.
         synchronized (mWaitingRequests) {
+            // 先提取请求对应的cache key，这里为请求url
             String cacheKey = request.getCacheKey();
+            // 然后判断下这个cacheKey在mWaitingRequests中有没有对应的value，即与请求相同url的请求的队列，
+            // 有的话则将请求加入到该队列，如果没有的话则将cacheKey作为key，nul作为value添加入mWaitingRequests中。
+            // mWaitingRequests的主要作用，就是避免重复的网络请求，它首先记录第一个新的url请求的url作为key，
+            // 然后如果在该请求在进行中的时候后续有相同url的请求add到RequestQueue中，则将这些请求添加到对应cache key的队列中就行了。
             if (mWaitingRequests.containsKey(cacheKey)) {
                 // There is already a request in flight. Queue up.
                 Queue<Request<?>> stagedRequests = mWaitingRequests.get(cacheKey);
@@ -259,6 +285,7 @@ public class RequestQueue {
                 // Insert 'null' queue for this cacheKey, indicating there is now a request in
                 // flight.
                 mWaitingRequests.put(cacheKey, null);
+                // 可以缓存的话则将这条请求加入缓存队列
                 mCacheQueue.add(request);
             }
             return request;

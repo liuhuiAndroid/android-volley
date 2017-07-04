@@ -16,6 +16,9 @@
 
 package com.android.volley;
 
+/**
+ * 返回结果分发接口，目前只有基于ExecutorDelivery的在入参 handler 对应线程内进行分发。
+ */
 public interface ResponseDelivery {
     /**
      * Parses a response from the network or cache and delivers it.

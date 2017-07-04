@@ -76,7 +76,7 @@ public class BasicNetwork implements Network {
 
     /**
      * @param httpStack HTTP stack to be used
-     * @param pool a buffer pool that improves GC performance in copy operations
+     * @param pool      a buffer pool that improves GC performance in copy operations
      */
     public BasicNetwork(HttpStack httpStack, ByteArrayPool pool) {
         mHttpStack = httpStack;
@@ -93,13 +93,23 @@ public class BasicNetwork implements Network {
             try {
                 // Gather headers.
                 Map<String, String> headers = new HashMap<String, String>();
+                // 首先会调用addCacheHeaders方法，目的是添加该请求缓存相关的请求头,如果有的话。
                 addCacheHeaders(headers, request.getCacheEntry());
+                // 调用了HttpStack的performRequest()方法
+                // 通过真正的请求类HttpStack具体类对像得到HttpResponse对象，这时候就拿到响应数据了。
                 httpResponse = mHttpStack.performRequest(request, headers);
+                // 获取状态码和响应头，接下来会对状态码做判断确定是否取出缓存数据
                 StatusLine statusLine = httpResponse.getStatusLine();
                 int statusCode = statusLine.getStatusCode();
 
+                // 服务端和资源的更新时间进行比较，
+                // 如果发现资源的Etag和Last-Modified一致，则认定缓存有效，则返回响应码为304的响应，
+                // 并且客户端会将请求携带的Entry中的数据（响应实体）和响应头作为新的响应返回
+
+                // 取出新响应的状态码后执行的代码
                 responseHeaders = convertHeaders(httpResponse.getAllHeaders());
                 // Handle cache validation.
+                // HttpStatus.SC_NOT_MODIFIED就是304，所以在拿到304响应状态码后，利用原来缓存的响应实体和头构建一个NetworkResponse返回。
                 if (statusCode == HttpStatus.SC_NOT_MODIFIED) {
 
                     Entry entry = request.getCacheEntry();
@@ -118,20 +128,21 @@ public class BasicNetwork implements Network {
                             entry.responseHeaders, true,
                             SystemClock.elapsedRealtime() - requestStart);
                 }
-                
+
                 // Handle moved resources
                 if (statusCode == HttpStatus.SC_MOVED_PERMANENTLY || statusCode == HttpStatus.SC_MOVED_TEMPORARILY) {
-                	String newUrl = responseHeaders.get("Location");
-                	request.setRedirectUrl(newUrl);
+                    String newUrl = responseHeaders.get("Location");
+                    request.setRedirectUrl(newUrl);
                 }
 
                 // Some responses such as 204s do not have content.  We must check.
                 if (httpResponse.getEntity() != null) {
-                  responseContents = entityToBytes(httpResponse.getEntity());
+                    //如果不是取缓存则调用entityToBytes(),将响应体转化为二进制数据
+                    responseContents = entityToBytes(httpResponse.getEntity());
                 } else {
-                  // Add 0 byte response as a way of honestly representing a
-                  // no-content request.
-                  responseContents = new byte[0];
+                    // Add 0 byte response as a way of honestly representing a
+                    // no-content request.
+                    responseContents = new byte[0];
                 }
 
                 // if the request is slow, log it.
@@ -141,6 +152,7 @@ public class BasicNetwork implements Network {
                 if (statusCode < 200 || statusCode > 299) {
                     throw new IOException();
                 }
+                // 接着封装响应体的二进制数据和状态码以及响应头为一个NetworkResponse对象，返回给NetworkDispatcher对象准备传递到客户端主线程。
                 return new NetworkResponse(statusCode, responseContents, responseHeaders, false,
                         SystemClock.elapsedRealtime() - requestStart);
             } catch (SocketTimeoutException e) {
@@ -157,11 +169,11 @@ public class BasicNetwork implements Network {
                 } else {
                     throw new NoConnectionError(e);
                 }
-                if (statusCode == HttpStatus.SC_MOVED_PERMANENTLY || 
-                		statusCode == HttpStatus.SC_MOVED_TEMPORARILY) {
-                	VolleyLog.e("Request at %s has been redirected to %s", request.getOriginUrl(), request.getUrl());
+                if (statusCode == HttpStatus.SC_MOVED_PERMANENTLY ||
+                        statusCode == HttpStatus.SC_MOVED_TEMPORARILY) {
+                    VolleyLog.e("Request at %s has been redirected to %s", request.getOriginUrl(), request.getUrl());
                 } else {
-                	VolleyLog.e("Unexpected response code %d for %s", statusCode, request.getUrl());
+                    VolleyLog.e("Unexpected response code %d for %s", statusCode, request.getUrl());
                 }
                 if (responseContents != null) {
                     networkResponse = new NetworkResponse(statusCode, responseContents,
@@ -170,8 +182,8 @@ public class BasicNetwork implements Network {
                             statusCode == HttpStatus.SC_FORBIDDEN) {
                         attemptRetryOnException("auth",
                                 request, new AuthFailureError(networkResponse));
-                    } else if (statusCode == HttpStatus.SC_MOVED_PERMANENTLY || 
-                    			statusCode == HttpStatus.SC_MOVED_TEMPORARILY) {
+                    } else if (statusCode == HttpStatus.SC_MOVED_PERMANENTLY ||
+                            statusCode == HttpStatus.SC_MOVED_TEMPORARILY) {
                         attemptRetryOnException("redirect",
                                 request, new RedirectError(networkResponse));
                     } else {
@@ -189,10 +201,10 @@ public class BasicNetwork implements Network {
      * Logs requests that took over SLOW_REQUEST_THRESHOLD_MS to complete.
      */
     private void logSlowRequests(long requestLifetime, Request<?> request,
-            byte[] responseContents, StatusLine statusLine) {
+                                 byte[] responseContents, StatusLine statusLine) {
         if (DEBUG || requestLifetime > SLOW_REQUEST_THRESHOLD_MS) {
             VolleyLog.d("HTTP response for request=<%s> [lifetime=%d], [size=%s], " +
-                    "[rc=%d], [retryCount=%s]", request, requestLifetime,
+                            "[rc=%d], [retryCount=%s]", request, requestLifetime,
                     responseContents != null ? responseContents.length : "null",
                     statusLine.getStatusCode(), request.getRetryPolicy().getCurrentRetryCount());
         }
@@ -201,10 +213,11 @@ public class BasicNetwork implements Network {
     /**
      * Attempts to prepare the request for a retry. If there are no more attempts remaining in the
      * request's retry policy, a timeout exception is thrown.
+     *
      * @param request The request to use.
      */
     private static void attemptRetryOnException(String logPrefix, Request<?> request,
-            VolleyError exception) throws VolleyError {
+                                                VolleyError exception) throws VolleyError {
         RetryPolicy retryPolicy = request.getRetryPolicy();
         int oldTimeout = request.getTimeoutMs();
 
@@ -225,11 +238,13 @@ public class BasicNetwork implements Network {
         }
 
         if (entry.etag != null) {
+            // 在请求存在Entry对象的情况下（即请求是由缓存中取出），添加If-None-Match请求头，值为原来响应头Etag的值
             headers.put("If-None-Match", entry.etag);
         }
 
         if (entry.lastModified > 0) {
             Date refTime = new Date(entry.lastModified);
+            // 添加If-Modified-Since请求头，值为原来响应头Last-Modified的值。
             headers.put("If-Modified-Since", DateUtils.formatDate(refTime));
         }
     }
@@ -239,7 +254,9 @@ public class BasicNetwork implements Network {
         VolleyLog.v("HTTP ERROR(%s) %d ms to fetch %s", what, (now - start), url);
     }
 
-    /** Reads the contents of HttpEntity into a byte[]. */
+    /**
+     * Reads the contents of HttpEntity into a byte[].
+     */
     private byte[] entityToBytes(HttpEntity entity) throws IOException, ServerError {
         PoolingByteArrayOutputStream bytes =
                 new PoolingByteArrayOutputStream(mPool, (int) entity.getContentLength());
