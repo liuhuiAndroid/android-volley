@@ -57,6 +57,7 @@ public class Volley {
         } catch (NameNotFoundException e) {
         }
 
+        // 初始化HttpStack
         if (stack == null) {
             if (Build.VERSION.SDK_INT >= 9) {
                 // HurlStack的内部就是使用HttpURLConnection进行网络通讯的
@@ -73,6 +74,7 @@ public class Volley {
         // BasicNetwork是对实现Stack的请求类进一步的封装，它实现NetWork接口
         Network network = new BasicNetwork(stack);
 
+        // 初始化RequestQueue
         // 构造它的参数一个是DiskBasedCache，看名字就能猜出它是硬盘缓存的类，传入之前创建的缓存文件目录
         RequestQueue queue;
         if (maxDiskCacheBytes <= -1)

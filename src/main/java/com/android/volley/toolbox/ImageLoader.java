@@ -207,21 +207,27 @@ public class ImageLoader {
     public ImageContainer get(String requestUrl, ImageListener imageListener,
             int maxWidth, int maxHeight, ScaleType scaleType) {
 
+        // 首先通过throwIfNotOnMainThread()方法限制必须在UI线程调用
         // only fulfill requests that were initiated from the main thread.
         throwIfNotOnMainThread();
 
+        // 然后根据传入的参数计算cacheKey，获取cache;
         final String cacheKey = getCacheKey(requestUrl, maxWidth, maxHeight, scaleType);
 
         // Try to look up the request in the cache of remote images.
         Bitmap cachedBitmap = mCache.getBitmap(cacheKey);
         if (cachedBitmap != null) {
             // Return the cached bitmap.
+            // 如果cache存在，直接将返回结果封装为一个ImageContainer(cachedBitmap, requestUrl, null, null)，
+            // 然后直接回调imageListener.onResponse(Container, true);我们就可以设置图片了。
             ImageContainer container = new ImageContainer(cachedBitmap, requestUrl, null, null);
             imageListener.onResponse(container, true);
             return container;
         }
 
         // The bitmap did not exist in the cache, fetch it!
+        // 如果cache不存在，初始化一个ImageContainer（没有bitmap），然后直接回调，imageListener.onResponse(imageContainer, true);
+        // 这里为了让大家在回调中判断，然后设置默认图片（所以，大家在自己实现listener的时候，别忘了判断resp.getBitmap()!=null）；
         ImageContainer imageContainer =
                 new ImageContainer(null, requestUrl, cacheKey, imageListener);
 
@@ -229,6 +235,7 @@ public class ImageLoader {
         imageListener.onResponse(imageContainer, true);
 
         // Check to see if a request is already in-flight.
+        // 接下来检查该url是否早已加入了请求对了，如果早已加入呢，则将刚初始化的ImageContainer加入BatchedImageRequest，返回结束。
         BatchedImageRequest request = mInFlightRequests.get(cacheKey);
         if (request != null) {
             // If it is, add this request to the list of listeners.
@@ -238,9 +245,13 @@ public class ImageLoader {
 
         // The request is not already in flight. Send the new request to the network and
         // track it.
+        // 如果是一个新的请求，则通过makeImageRequest创建一个新的请求，
+        // 然后将这个请求分别加入mRequestQueue和mInFlightRequests，
+        // 注意mInFlightRequests中会初始化一个BatchedImageRequest，存储相同的请求队列。
         Request<Bitmap> newRequest = makeImageRequest(requestUrl, maxWidth, maxHeight, scaleType,
                 cacheKey);
 
+        // mRequestQueue是个对象，并不是队列数据结构，所以我们要看下add方法
         mRequestQueue.add(newRequest);
         mInFlightRequests.put(cacheKey,
                 new BatchedImageRequest(newRequest, imageContainer));

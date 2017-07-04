@@ -116,9 +116,13 @@ public class RequestQueue {
      */
     public RequestQueue(Cache cache, Network network, int threadPoolSize,
             ResponseDelivery delivery) {
+        // 硬盘缓存
         mCache = cache;
+        // 主要用于Http相关操作
         mNetwork = network;
+        // 用于转发请求的
         mDispatchers = new NetworkDispatcher[threadPoolSize];
+        // 用于把结果转发到UI线程（ps:你可以看到new Handler(Looper.getMainLooper())）
         mDelivery = delivery;
     }
 
@@ -148,6 +152,8 @@ public class RequestQueue {
      * Starts the dispatchers in this queue.
      */
     public void start() {
+        // stop，确保转发器退出，其实就是内部的几个线程退出
+        // 可以了解一下Volley中是怎么处理线程退出的
         stop();  // Make sure any currently running dispatchers are stopped.
 
         // NetworkDispatcher和CacheDispatcher 都是Thread的子类，并且注意到它们都持有一个优先级阻塞队列PriorityBlockingQueue
@@ -245,6 +251,7 @@ public class RequestQueue {
         request.setRequestQueue(this);
         synchronized (mCurrentRequests) {
             // 然后将请求添加到mCurrentRequests，这意味着请求已经正在进行中
+            // 这个mCurrentRequests保存了所有需要处理的Request，主要为了提供cancel的入口。
             mCurrentRequests.add(request);
         }
 
@@ -257,7 +264,7 @@ public class RequestQueue {
         // 判断当前的请求是否可以缓存
         // 在默认情况下，每条请求都是可以缓存的，当然我们也可以调用Request的setShouldCache(false)方法来改变这一默认行为。
         if (!request.shouldCache()) {
-            // 不需要缓存则直接将这条请求加入网络请求队列
+            // 不需要缓存则直接将这条请求加入网络请求队列mNetworkQueue,然后返回。
             mNetworkQueue.add(request);
             return request;
         }
@@ -267,7 +274,8 @@ public class RequestQueue {
             // 先提取请求对应的cache key，这里为请求url
             String cacheKey = request.getCacheKey();
             // 然后判断下这个cacheKey在mWaitingRequests中有没有对应的value，即与请求相同url的请求的队列，
-            // 有的话则将请求加入到该队列，如果没有的话则将cacheKey作为key，nul作为value添加入mWaitingRequests中。
+            // 有的话则将请求加入到该队列，
+            // 如果没有的话则将cacheKey作为key，nul作为value添加入mWaitingRequests中。
             // mWaitingRequests的主要作用，就是避免重复的网络请求，它首先记录第一个新的url请求的url作为key，
             // 然后如果在该请求在进行中的时候后续有相同url的请求add到RequestQueue中，则将这些请求添加到对应cache key的队列中就行了。
             if (mWaitingRequests.containsKey(cacheKey)) {

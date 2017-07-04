@@ -149,8 +149,10 @@ public class CacheDispatcher extends Thread {
                 // 验证新鲜度entry.refreshNeeded()（softTtl与当前时间的比较），
                 // 不用验证新鲜度则直接将缓存的数据传递到客户端线程，需要刷新则还是将将该Entry传递给request，
                 // 然后请求添加到请求队列去验证响应数据新鲜度。
+                // 主要还是判断是否过期
                 if (!entry.refreshNeeded()) {
                     // Completely unexpired cache hit. Just deliver the response.
+                    // 如果没有过期则直接通过mDelivery.postResponse转发，然后回调到UI线程
                     mDelivery.postResponse(request, response);
                 } else {
                     // Soft-expired cache hit. We can deliver the cached response,
@@ -164,6 +166,7 @@ public class CacheDispatcher extends Thread {
 
                     // Post the intermediate response back to the user and have
                     // the delivery then forward the request along to the network.
+                    // 如果ttl不合法，回调完成后，还会将该请求加入mNetworkQueue
                     final Request<?> finalRequest = request;
                     mDelivery.postResponse(request, response, new Runnable() {
                         @Override
