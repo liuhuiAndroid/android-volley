@@ -95,6 +95,7 @@ public class BasicNetwork implements Network {
                 Map<String, String> headers = new HashMap<String, String>();
                 // 首先会调用addCacheHeaders方法，目的是添加该请求缓存相关的请求头,如果有的话。
                 addCacheHeaders(headers, request.getCacheEntry());
+
                 // 调用了HttpStack的performRequest()方法
                 // 通过真正的请求类HttpStack具体类对像得到HttpResponse对象，这时候就拿到响应数据了。
                 httpResponse = mHttpStack.performRequest(request, headers);
@@ -152,6 +153,8 @@ public class BasicNetwork implements Network {
                 if (statusCode < 200 || statusCode > 299) {
                     throw new IOException();
                 }
+
+                // 将服务器返回的数据组装成一个NetworkResponse对象进行返回。
                 // 接着封装响应体的二进制数据和状态码以及响应头为一个NetworkResponse对象，返回给NetworkDispatcher对象准备传递到客户端主线程。
                 return new NetworkResponse(statusCode, responseContents, responseHeaders, false,
                         SystemClock.elapsedRealtime() - requestStart);

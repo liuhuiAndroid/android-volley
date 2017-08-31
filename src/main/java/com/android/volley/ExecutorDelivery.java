@@ -59,6 +59,7 @@ public class ExecutorDelivery implements ResponseDelivery {
     public void postResponse(Request<?> request, Response<?> response, Runnable runnable) {
         request.markDelivered();
         request.addMarker("post-response");
+        // 在mResponsePoster的execute()方法中传入了一个ResponseDeliveryRunnable对象，就可以保证该对象中的run()方法就是在主线程当中运行的了
         mResponsePoster.execute(new ResponseDeliveryRunnable(request, response, runnable));
     }
 
@@ -97,6 +98,7 @@ public class ExecutorDelivery implements ResponseDelivery {
 
             // Deliver a normal response or error, depending.
             if (mResponse.isSuccess()) {
+                // 调用了Request的deliverResponse()方法
                 // 这个就是我们在自定义Request时需要重写的另外一个方法
                 // 每一条网络请求的响应都是回调到这个方法中，最后我们再在这个方法中将响应的数据回调到Response.Listener的onResponse()方法中就可以了
                 mRequest.deliverResponse(mResponse.result);

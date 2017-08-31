@@ -161,8 +161,10 @@ public class RequestQueue {
         // Create the cache dispatcher and start it.
         // CacheDispatcher是缓存线程
         mCacheDispatcher = new CacheDispatcher(mCacheQueue, mNetworkQueue, mCache, mDelivery);
+        // 先是创建了一个CacheDispatcher的实例，然后调用了它的start()方法
         mCacheDispatcher.start();
 
+        // 接着在一个for循环里去创建NetworkDispatcher的实例，并分别调用它们的start()方法
         // Create network dispatchers (and corresponding threads) up to the pool size.
         // NetworkDispatcher是网络请求线程,
         // 默认情况下for循环会执行四次,相当于后台有五个线程一直在运行,不断等待网络请求的到来

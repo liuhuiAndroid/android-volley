@@ -55,6 +55,7 @@ public class Volley {
             PackageInfo info = context.getPackageManager().getPackageInfo(packageName, 0);
             userAgent = packageName + "/" + info.versionCode;
         } catch (NameNotFoundException e) {
+
         }
 
         // 初始化HttpStack
@@ -80,6 +81,7 @@ public class Volley {
         if (maxDiskCacheBytes <= -1)
         {
         	// No maximum size specified
+            // new出一个RequestQueue对象
         	queue = new RequestQueue(new DiskBasedCache(cacheDir), network);
         }
         else
@@ -88,6 +90,7 @@ public class Volley {
         	queue = new RequestQueue(new DiskBasedCache(cacheDir, maxDiskCacheBytes), network);
         }
 
+        // 调用RequestQueue的start()方法进行启动，然后将RequestQueue返回
         // 这个RequestQueue究竟扮演怎样的角色呢？从RequestQueue的start方法入手：
         queue.start();
 

@@ -136,7 +136,7 @@ public class NetworkDispatcher extends Thread {
                 // Parse the response here on the worker thread.
                 // 调用Request的parseNetworkResponse()方法来解析NetworkResponse中的数据，
                 // 以及将数据写入到缓存
-                // 这个方法的实现是交给Request的子类来完成的,自定义Request这个方法就是必须要重写的
+                // 这个方法的实现是交给Request的子类来完成的,不同种类的Request解析的方式肯定不同,自定义Request这个方法就是必须要重写的
                 // 将二级制数转化为对应的所需要的数据形式
                 // 注：因为我们NetworkResponse返回都是服务器返回的一些数据，而不同的请求对应的返回结果肯定不同，比如我们的ImageRequest，解析出来是个bitmap，
                 // 所以我们的解析代码是在Request里面;这里大家想想，如果我们自定义Request，该方法是不是会重写呢？详情请戳Android Volley 之自定义Request

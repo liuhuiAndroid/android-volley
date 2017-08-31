@@ -113,11 +113,13 @@ public class CacheDispatcher extends Thread {
                 }
 
                 // Attempt to retrieve this item from cache.
+                // 会尝试从缓存当中取出响应结果
                 // 通过CacheKey判断下是否请求已经在缓存中，如果在的话则从缓存当中取出响应结果
                 // 请求的缓存都是以Cache接口的内部类Entry缓存起来的
                 // Entry是一个很简单的实体类，存储的是和请求判断是否过期相关的属性，
                 // 那这里的缓存过程是在哪里进行的呢？这很容易猜到，在网络请求成功后。
                 Cache.Entry entry = mCache.get(request.getCacheKey());
+
                 if (entry == null) {
                     // 如果为空的话则把这条请求加入到网络请求队列中
                     request.addMarker("cache-miss");
@@ -139,7 +141,7 @@ public class CacheDispatcher extends Thread {
                 }
 
                 // We have a cache hit; parse its data for delivery back to the request.
-                // 认为不需要重发网络请求，直接使用缓存中的数据即可
+                // 有缓存没过期,认为不需要重发网络请求，直接使用缓存中的数据即可
                 request.addMarker("cache-hit");
                 // 调用Request的parseNetworkResponse()方法来对数据进行解析，再往后就是将解析出来的数据进行回调了
                 Response<?> response = request.parseNetworkResponse(
