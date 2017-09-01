@@ -111,7 +111,7 @@ public class NetworkDispatcher extends Thread {
                 // network request.
                 if (request.isCanceled()) {
                     // 如果取消则对请求调用finish并重新循环取下一个请求
-                    // finish的处理就是将请求从RequestQueue的mCurrentRequests和将该请求移除
+                    // finish的处理就是将请求从RequestQueue的mCurrentRequests中将该请求移除
                     // （这里取消请求，往往运用在和Activity生命周期联动上，
                     // 在Activity的destroy方法取消掉该Activity的所有请求。主要是防止内存泄漏）
                     request.finish("network-discard-cancelled");
@@ -121,7 +121,7 @@ public class NetworkDispatcher extends Thread {
                 addTrafficStatsTag(request);
 
                 // Perform the network request.
-                // 会调用Network的performRequest()方法来去发送网络请求，
+                // 会调用BasicNetwork的performRequest()方法来去发送网络请求，
                 // 而Network是一个接口，这里具体的实现是BasicNetwork，我们来看下它的performRequest()方法
                 NetworkResponse networkResponse = mNetwork.performRequest(request);
                 request.addMarker("network-http-complete");
@@ -134,7 +134,7 @@ public class NetworkDispatcher extends Thread {
                 }
 
                 // Parse the response here on the worker thread.
-                // 调用Request的parseNetworkResponse()方法来解析NetworkResponse中的数据，
+                // 调用Request的parseNetworkResponse()方法来解析NetworkResponse中的数据得到一个Response的对象，
                 // 以及将数据写入到缓存
                 // 这个方法的实现是交给Request的子类来完成的,不同种类的Request解析的方式肯定不同,自定义Request这个方法就是必须要重写的
                 // 将二级制数转化为对应的所需要的数据形式

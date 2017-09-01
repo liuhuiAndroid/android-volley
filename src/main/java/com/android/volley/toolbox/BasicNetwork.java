@@ -99,8 +99,8 @@ public class BasicNetwork implements Network {
                 // 调用了HttpStack的performRequest()方法
                 // 通过真正的请求类HttpStack具体类对像得到HttpResponse对象，这时候就拿到响应数据了。
                 httpResponse = mHttpStack.performRequest(request, headers);
-                // 获取状态码和响应头，接下来会对状态码做判断确定是否取出缓存数据
                 StatusLine statusLine = httpResponse.getStatusLine();
+                // 获取状态码和响应头
                 int statusCode = statusLine.getStatusCode();
 
                 // 服务端和资源的更新时间进行比较，
@@ -110,7 +110,10 @@ public class BasicNetwork implements Network {
                 // 取出新响应的状态码后执行的代码
                 responseHeaders = convertHeaders(httpResponse.getAllHeaders());
                 // Handle cache validation.
+                // 操作cache的验证
+                // 304:自从上次请求后，请求的网页未修改过。服务器返回此响应时，不会返回网页内容。
                 // HttpStatus.SC_NOT_MODIFIED就是304，所以在拿到304响应状态码后，利用原来缓存的响应实体和头构建一个NetworkResponse返回。
+                // 接下来会对状态码做判断确定是否取出缓存数据
                 if (statusCode == HttpStatus.SC_NOT_MODIFIED) {
 
                     Entry entry = request.getCacheEntry();

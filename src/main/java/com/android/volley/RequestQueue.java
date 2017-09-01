@@ -277,10 +277,11 @@ public class RequestQueue {
             String cacheKey = request.getCacheKey();
             // 然后判断下这个cacheKey在mWaitingRequests中有没有对应的value，即与请求相同url的请求的队列，
             // 有的话则将请求加入到该队列，
-            // 如果没有的话则将cacheKey作为key，nul作为value添加入mWaitingRequests中。
+            // 如果没有的话则将cacheKey作为key，null作为value添加入mWaitingRequests中。
             // mWaitingRequests的主要作用，就是避免重复的网络请求，它首先记录第一个新的url请求的url作为key，
             // 然后如果在该请求在进行中的时候后续有相同url的请求add到RequestQueue中，则将这些请求添加到对应cache key的队列中就行了。
             if (mWaitingRequests.containsKey(cacheKey)) {
+                // 有相同的请求正在处理
                 // There is already a request in flight. Queue up.
                 Queue<Request<?>> stagedRequests = mWaitingRequests.get(cacheKey);
                 if (stagedRequests == null) {
@@ -294,6 +295,7 @@ public class RequestQueue {
             } else {
                 // Insert 'null' queue for this cacheKey, indicating there is now a request in
                 // flight.
+                // 没有相同的请求正在处理
                 mWaitingRequests.put(cacheKey, null);
                 // 可以缓存的话则将这条请求加入缓存队列
                 mCacheQueue.add(request);

@@ -65,6 +65,7 @@ public interface Cache {
 
     /**
      * Data and metadata for an entry returned by the cache.
+     * Entry 是一个很简单的实体类，存储的是和请求判断是否过期相关的属性
      */
     public static class Entry {
         /** The data returned from cache. */

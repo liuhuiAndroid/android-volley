@@ -45,10 +45,12 @@ public class Volley {
      * @return A started {@link RequestQueue} instance.
      */
     public static RequestQueue newRequestQueue(Context context, HttpStack stack, int maxDiskCacheBytes) {
+        // 硬盘缓存
         // 创建了一个应用的缓存文件目录
         // 这里的DEFAULT_CACHE_DIR为“volley”，即在当前应用的Cache目录下创建了volley文件作为DiskBasedCache的缓存目录。
         File cacheDir = new File(context.getCacheDir(), DEFAULT_CACHE_DIR);
 
+        // userAgent 用户代理
         String userAgent = "volley/0";
         try {
             String packageName = context.getPackageName();

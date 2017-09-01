@@ -107,6 +107,7 @@ public class CacheDispatcher extends Thread {
                 request.addMarker("cache-queue-take");
 
                 // If the request has been canceled, don't bother dispatching it.
+                // 判断请求是否被取消，取消则将请求标记为取消并继续取下一个请求
                 if (request.isCanceled()) {
                     request.finish("cache-discard-canceled");
                     continue;
